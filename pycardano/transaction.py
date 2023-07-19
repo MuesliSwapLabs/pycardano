@@ -49,6 +49,7 @@ __all__ = [
     "Value",
     "TransactionOutput",
     "UTxO",
+    "KupoUTxO",
     "TransactionBody",
     "Transaction",
     "Withdrawals",
