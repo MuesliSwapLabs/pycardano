@@ -469,6 +469,12 @@ class UTxO(ArrayCBORSerializable):
         return hash(blake2b(self.input.to_cbor() + self.output.to_cbor(), 32))
 
 
+@dataclass(repr=False)
+class KupoUTxO(UTxO):
+    created_at: int
+    spent_at: Optional[int]
+
+
 class Withdrawals(DictCBORSerializable):
     """A disctionary of reward addresses to reward withdrawal amount.
 

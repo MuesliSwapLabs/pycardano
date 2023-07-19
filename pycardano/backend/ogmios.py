@@ -30,6 +30,7 @@ from pycardano.transaction import (
     TransactionOutput,
     UTxO,
     Value,
+    KupoUTxO,
 )
 from pycardano.types import JsonDict
 
@@ -389,7 +390,15 @@ class OgmiosChainContext(ChainContext):
                         datum=datum,
                         script=script,
                     )
-                utxos.append(UTxO(tx_in, tx_out))
+                ku = KupoUTxO(
+                    tx_in,
+                    tx_out,
+                    result["created_at"]["slot_no"],
+                    result["spent_at"]["slot_no"]
+                    if result["spent_at"] is not None
+                    else None,
+                )
+                utxos.append(ku)
             else:
                 continue
 
