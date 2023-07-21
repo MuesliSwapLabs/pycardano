@@ -96,14 +96,7 @@ class Asset(DictCBORSerializable):
     def __sub__(self, other: Asset) -> Asset:
         new_asset = deepcopy(self)
         for n in other:
-            if n not in new_asset:
-                raise InvalidOperationException(
-                    f"Asset: {new_asset} does not have asset with name: {n}"
-                )
-            # According to ledger rule, the value of an asset could be negative, so we don't check the value here and
-            # will leave the check to users when necessary.
-            # https://github.com/input-output-hk/cardano-ledger/blob/master/eras/alonzo/test-suite/cddl-files/alonzo.cddl#L378
-            new_asset[n] -= other[n]
+            new_asset[n] = new_asset.get(n, 0) - other[n]
         return new_asset
 
     def __eq__(self, other):
