@@ -150,9 +150,7 @@ class MultiAsset(DictCBORSerializable):
         new_multi_asset = deepcopy(self)
         for p in other:
             if p not in new_multi_asset:
-                raise InvalidOperationException(
-                    f"MultiAsset: {new_multi_asset} doesn't have policy: {p}"
-                )
+                new_multi_asset[p] = Asset()
             new_multi_asset[p] -= other[p]
         return new_multi_asset
 
