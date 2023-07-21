@@ -952,11 +952,6 @@ class TransactionBuilder:
         requested_amount = Value()
         for o in self.outputs:
             requested_amount += o.amount
-        # minted negative amounts are also requested!
-        for pid, m in self.mint.items():
-            for tkn, am in m.items():
-                if am < 0:
-                    requested_amount += Value(multi_asset=MultiAsset({pid: Asset({tkn: -am})}))
 
         if self.mint:
             for pid, m in self.mint.items():
