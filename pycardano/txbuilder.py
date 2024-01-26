@@ -124,6 +124,8 @@ class TransactionBuilder:
 
     _fee: int = field(init=False, default=0)
 
+    fixed_fee: Optional[int] = field(init=False, default=None)
+
     _datums: Dict[DatumHash, Datum] = field(init=False, default_factory=lambda: {})
 
     _collateral_return: Optional[TransactionOutput] = field(init=False, default=None)
@@ -530,7 +532,7 @@ class TransactionBuilder:
                             change_output_index = idx
 
             # Set fee to max
-            self.fee = self._estimate_fee()
+            self.fee = self._estimate_fee() if self.fixed_fee is None else self.fixed_fee
             changes = self._calc_change(
                 self.fee,
                 self.inputs,
@@ -543,7 +545,7 @@ class TransactionBuilder:
             _merge_changes(changes)
 
         # With changes included, we can estimate the fee more precisely
-        self.fee = self._estimate_fee()
+        self.fee = self._estimate_fee() if self.fixed_fee is None else self.fixed_fee
 
         if change_address:
             self._outputs = original_outputs
@@ -806,7 +808,7 @@ class TransactionBuilder:
         if tx_body.fee == 0:
             # When fee is not specified, we will use max possible fee to fill in the fee field.
             # This will make sure the size of fee field itself is taken into account during fee estimation.
-            tx_body.fee = max_tx_fee(self.context)
+            tx_body.fee = max_tx_fee(self.context) if self.fixed_fee is None else 0
 
         witness = self._build_fake_witness_set()
         tx = Transaction(tx_body, witness, True, self.auxiliary_data)
@@ -969,7 +971,7 @@ class TransactionBuilder:
                         )
 
         # Include min fees associated as part of requested amount
-        requested_amount += self._estimate_fee()
+        requested_amount += self._estimate_fee() if self.fixed_fee is None else self.fixed_fee
 
         # Trim off assets that are not requested because they will be returned as changes eventually.
         trimmed_selected_amount = Value(
