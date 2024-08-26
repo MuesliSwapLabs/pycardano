@@ -30,7 +30,7 @@ class VerificationKeyWitness(ArrayCBORSerializable):
             self.vkey = self.vkey.to_non_extended()
 
     @classmethod
-    @limit_primitive_type(list)
+    @limit_primitive_type(list, tuple)
     def from_primitive(
         cls: Type[VerificationKeyWitness], values: Union[list, tuple]
     ) -> VerificationKeyWitness:
@@ -80,7 +80,7 @@ class TransactionWitnessSet(MapCBORSerializable):
     )
 
     @classmethod
-    @limit_primitive_type(dict, list)
+    @limit_primitive_type(dict, list, tuple)
     def from_primitive(
         cls: Type[TransactionWitnessSet], values: Union[dict, list, tuple]
     ) -> TransactionWitnessSet | None:
