@@ -14,7 +14,7 @@ from nacl.hash import blake2b
 
 from pycardano.address import Address
 from pycardano.certificate import Certificate
-from pycardano.exception import InvalidDataException, InvalidOperationException
+from pycardano.exception import InvalidDataException
 from pycardano.hash import (
     TRANSACTION_HASH_SIZE,
     AuxiliaryDataHash,
@@ -49,11 +49,13 @@ __all__ = [
     "Value",
     "TransactionOutput",
     "UTxO",
-    "KupoUTxO",
     "TransactionBody",
     "Transaction",
     "Withdrawals",
 ]
+
+_MAX_INT64 = (1 << 63) - 1
+_MIN_INT64 = -(1 << 63)
 
 
 @dataclass(repr=False)
@@ -129,9 +131,7 @@ class MultiAsset(DictCBORSerializable):
     def __add__(self, other):
         new_multi_asset = deepcopy(self)
         for p in other:
-            if p not in new_multi_asset:
-                new_multi_asset[p] = Asset()
-            new_multi_asset[p] += other[p]
+            new_multi_asset[p] = new_multi_asset.get(p, Asset()) + other[p]
         return new_multi_asset
 
     def __iadd__(self, other):
@@ -142,9 +142,7 @@ class MultiAsset(DictCBORSerializable):
     def __sub__(self, other: MultiAsset) -> MultiAsset:
         new_multi_asset = deepcopy(self)
         for p in other:
-            if p not in new_multi_asset:
-                new_multi_asset[p] = Asset()
-            new_multi_asset[p] -= other[p]
+            new_multi_asset[p] = new_multi_asset.get(p, Asset()) - other[p]
         return new_multi_asset
 
     def __eq__(self, other):
@@ -294,7 +292,8 @@ class _DatumOption(ArrayCBORSerializable):
         else:
             self._TYPE = 1
 
-    def to_shallow_primitive(self) -> List[Primitive]:
+    def to_shallow_primitive(self) -> Primitive:
+        data: Union[CBORTag, DatumHash]
         if self._TYPE == 1:
             data = CBORTag(24, cbor2.dumps(self.datum, default=default_encoder))
         else:
@@ -461,18 +460,6 @@ class UTxO(ArrayCBORSerializable):
         return hash(blake2b(self.input.to_cbor() + self.output.to_cbor(), 32))
 
 
-@dataclass(repr=False)
-class KupoUTxO(UTxO):
-    created_at: int
-    spent_at: Optional[int]
-
-    def __repr__(self):
-        return pformat(vars(self))
-
-    def __hash__(self):
-        return hash(blake2b(self.input.to_cbor() + self.output.to_cbor(), 32))
-
-
 class Withdrawals(DictCBORSerializable):
     """A disctionary of reward addresses to reward withdrawal amount.
 
@@ -508,7 +495,11 @@ class TransactionBody(MapCBORSerializable):
     ttl: Optional[int] = field(default=None, metadata={"key": 3, "optional": True})
 
     certificates: Optional[List[Certificate]] = field(
-        default=None, metadata={"key": 4, "optional": True}
+        default=None,
+        metadata={
+            "key": 4,
+            "optional": True,
+        },
     )
 
     withdraws: Optional[Withdrawals] = field(
@@ -572,6 +563,15 @@ class TransactionBody(MapCBORSerializable):
             "optional": True,
         },
     )
+
+    def validate(self):
+        if (
+            self.mint
+            and self.mint.count(lambda p, n, v: v < _MIN_INT64 or v > _MAX_INT64) > 0
+        ):
+            raise InvalidDataException(
+                f"Mint amount must be between {_MIN_INT64} and {_MAX_INT64}. \n Mint amount: {self.mint}"
+            )
 
     def hash(self) -> bytes:
         return blake2b(self.to_cbor(), TRANSACTION_HASH_SIZE, encoder=RawEncoder)  # type: ignore

@@ -2,9 +2,9 @@ import json
 import time
 from datetime import datetime, timezone
 from enum import Enum
+from fractions import Fraction
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import cbor2
 import requests
 import websocket
 from cachetools import Cache, LRUCache, TTLCache, func
@@ -30,7 +30,6 @@ from pycardano.transaction import (
     TransactionOutput,
     UTxO,
     Value,
-    KupoUTxO,
 )
 from pycardano.types import JsonDict
 
@@ -79,7 +78,7 @@ class OgmiosChainContext(ChainContext):
         self._genesis_param = None
         self._protocol_param = None
         if refetch_chain_tip_interval is None:
-            self._refetch_chain_tip_interval = (
+            self._refetch_chain_tip_interval = float(
                 self.genesis_param.slot_length
                 / self.genesis_param.active_slots_coefficient
             )
@@ -148,9 +147,8 @@ class OgmiosChainContext(ChainContext):
             return False
 
     @staticmethod
-    def _fraction_parser(fraction: str) -> float:
-        x, y = fraction.split("/")
-        return int(x) / int(y)
+    def _fraction_parser(fraction: str) -> Fraction:
+        return Fraction(fraction)
 
     @property
     def protocol_param(self) -> ProtocolParameters:
@@ -246,7 +244,7 @@ class OgmiosChainContext(ChainContext):
     @property
     def network(self) -> Network:
         """Get current network"""
-        return self.network
+        return self._network
 
     @property
     def epoch(self) -> int:
@@ -361,8 +359,6 @@ class OgmiosChainContext(ChainContext):
                 )
                 if datum_hash and result.get("datum_type", "inline"):
                     datum = self._get_datum_from_kupo(result["datum_hash"])
-                    if datum is not None:
-                        datum_hash = None
 
                 if not result["value"]["assets"]:
                     tx_out = TransactionOutput(
@@ -390,15 +386,7 @@ class OgmiosChainContext(ChainContext):
                         datum=datum,
                         script=script,
                     )
-                ku = KupoUTxO(
-                    tx_in,
-                    tx_out,
-                    result["created_at"]["slot_no"],
-                    result["spent_at"]["slot_no"]
-                    if result["spent_at"] is not None
-                    else None,
-                )
-                utxos.append(ku)
+                utxos.append(UTxO(tx_in, tx_out))
             else:
                 continue
 
@@ -475,9 +463,9 @@ class OgmiosChainContext(ChainContext):
         script = output.get("script", None)
         if script:
             if "plutus:v2" in script:
-                script = PlutusV2Script(cbor2.loads(bytes.fromhex(script["plutus:v2"])))
+                script = PlutusV2Script(bytes.fromhex(script["plutus:v2"]))
             elif "plutus:v1" in script:
-                script = PlutusV1Script(cbor2.loads(bytes.fromhex(script["plutus:v1"])))
+                script = PlutusV1Script(bytes.fromhex(script["plutus:v1"]))
             else:
                 raise ValueError("Unknown plutus script type")
         datum_hash = (
