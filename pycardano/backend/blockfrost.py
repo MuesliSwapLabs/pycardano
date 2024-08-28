@@ -162,6 +162,7 @@ class BlockFrostChainContext(ChainContext):
                 coins_per_utxo_word=int(params.coins_per_utxo_word)
                 or ALONZO_COINS_PER_UTXO_WORD,
                 coins_per_utxo_byte=int(params.coins_per_utxo_size),
+                min_ref_script_cost_per_byte=params.min_fee_ref_script_cost_per_byte,
                 cost_models={
                     k: v.to_dict() for k, v in params.cost_models.to_dict().items()
                 },

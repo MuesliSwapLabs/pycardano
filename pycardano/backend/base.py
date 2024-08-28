@@ -105,6 +105,8 @@ class ProtocolParameters:
 
     coins_per_utxo_byte: int
 
+    min_ref_script_cost_per_byte: int
+
     cost_models: Dict[str, Dict[str, int]]
     """A dict contains cost models for Plutus. The key will be "PlutusV1", "PlutusV2", etc.
     The value will be a dict of cost model parameters."""
