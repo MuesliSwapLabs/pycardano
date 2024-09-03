@@ -7,7 +7,13 @@ from typing import Any, List, Optional, Type, Union
 
 from pycardano.key import ExtendedVerificationKey, VerificationKey
 from pycardano.nativescript import NativeScript
-from pycardano.plutus import PlutusV1Script, PlutusV2Script, RawPlutusData, Redeemer
+from pycardano.plutus import (
+    PlutusV1Script,
+    PlutusV2Script,
+    PlutusV3Script,
+    RawPlutusData,
+    Redeemer,
+)
 from pycardano.serialization import (
     ArrayCBORSerializable,
     MapCBORSerializable,

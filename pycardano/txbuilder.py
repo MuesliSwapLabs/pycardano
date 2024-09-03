@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field, fields
 from typing import Dict, List, Optional, Set, Tuple, Union
 
+from pycardano import RedeemerMap
 from pycardano.address import Address, AddressType
 from pycardano.backend.base import ChainContext
 from pycardano.certificate import (
@@ -40,8 +41,12 @@ from pycardano.plutus import (
     ExecutionUnits,
     PlutusV1Script,
     PlutusV2Script,
+    PlutusV3Script,
     Redeemer,
+    RedeemerKey,
+    Redeemers,
     RedeemerTag,
+    RedeemerValue,
     ScriptType,
     datum_hash,
     script_hash,
@@ -155,9 +160,9 @@ class TransactionBuilder:
         init=False, default_factory=lambda: {}
     )
 
-    _reference_scripts: List[Union[NativeScript, PlutusV1Script, PlutusV2Script]] = (
-        field(init=False, default_factory=lambda: [])
-    )
+    _reference_scripts: List[
+        Union[NativeScript, PlutusV1Script, PlutusV2Script, PlutusV3Script]
+    ] = field(init=False, default_factory=lambda: [])
 
     _should_estimate_execution_units: Optional[bool] = field(init=False, default=None)
 
@@ -185,7 +190,7 @@ class TransactionBuilder:
                 raise InvalidArgumentException(
                     f"All redeemers need to provide execution units if the firstly "
                     f"added redeemer specifies execution units. \n"
-                    f"Added redeemers: {self.redeemers} \n"
+                    f"Added redeemers: {self._redeemer_list} \n"
                     f"New redeemer: {redeemer}"
                 )
             if self._should_estimate_execution_units:
@@ -193,7 +198,7 @@ class TransactionBuilder:
                     raise InvalidArgumentException(
                         f"No redeemer should provide execution units if the firstly "
                         f"added redeemer didn't provide execution units. \n"
-                        f"Added redeemers: {self.redeemers} \n"
+                        f"Added redeemers: {self._redeemer_list} \n"
                         f"New redeemer: {redeemer}"
                     )
                 else:
@@ -203,7 +208,7 @@ class TransactionBuilder:
         self,
         utxo: UTxO,
         script: Optional[
-            Union[UTxO, NativeScript, PlutusV1Script, PlutusV2Script]
+            Union[UTxO, NativeScript, PlutusV1Script, PlutusV2Script, PlutusV3Script]
         ] = None,
         datum: Optional[Datum] = None,
         redeemer: Optional[Redeemer] = None,
@@ -212,7 +217,8 @@ class TransactionBuilder:
 
         Args:
             utxo (UTxO): Script UTxO to be added.
-            script (Optional[Union[UTxO, NativeScript, PlutusV1Script, PlutusV2Script]]): A plutus script.
+            script (Optional[Union[UTxO, NativeScript, PlutusV1Script, PlutusV2Script, PlutusV3Script]]):
+                A plutus script.
                 If not provided, the script will be inferred from the input UTxO (first arg of this method).
                 The script can also be a specific UTxO whose output contains an inline script.
             datum (Optional[Datum]): A plutus datum to unlock the UTxO.
@@ -263,7 +269,10 @@ class TransactionBuilder:
 
         # collect potential scripts to fulfill the input
         candidate_scripts: List[
-            Tuple[Union[NativeScript, PlutusV1Script, PlutusV2Script], Optional[UTxO]]
+            Tuple[
+                Union[NativeScript, PlutusV1Script, PlutusV2Script, PlutusV3Script],
+                Optional[UTxO],
+            ]
         ] = []
         if utxo.output.script:
             candidate_scripts.append((utxo.output.script, utxo))
@@ -285,11 +294,14 @@ class TransactionBuilder:
         for candidate_script, candidate_utxo in candidate_scripts:
             if script_hash(candidate_script) != input_script_hash:
                 continue
+
             found_valid_script = True
             self._inputs_to_scripts[utxo] = candidate_script
-            if candidate_utxo is not None:
+
+            if candidate_utxo is not None and candidate_utxo != utxo:
                 self.reference_inputs.add(candidate_utxo)
                 self._reference_scripts.append(candidate_script)
+            break
         if not found_valid_script:
             raise InvalidArgumentException(
                 f"Cannot find a valid script to fulfill the input UTxO: {utxo.input}."
@@ -301,13 +313,15 @@ class TransactionBuilder:
 
     def add_minting_script(
         self,
-        script: Union[UTxO, NativeScript, PlutusV1Script, PlutusV2Script],
+        script: Union[
+            UTxO, NativeScript, PlutusV1Script, PlutusV2Script, PlutusV3Script
+        ],
         redeemer: Optional[Redeemer] = None,
     ) -> TransactionBuilder:
         """Add a minting script along with its datum and redeemer to this transaction.
 
         Args:
-            script (Union[UTxO, PlutusV1Script, PlutusV2Script]): A plutus script.
+            script (Union[UTxO, PlutusV1Script, PlutusV2Script, PlutusV3Script]): A plutus script.
             redeemer (Optional[Redeemer]): A plutus redeemer to unlock the UTxO.
 
         Returns:
@@ -333,13 +347,15 @@ class TransactionBuilder:
 
     def add_withdrawal_script(
         self,
-        script: Union[UTxO, NativeScript, PlutusV1Script, PlutusV2Script],
+        script: Union[
+            UTxO, NativeScript, PlutusV1Script, PlutusV2Script, PlutusV3Script
+        ],
         redeemer: Optional[Redeemer] = None,
     ) -> TransactionBuilder:
         """Add a withdrawal script along with its redeemer to this transaction.
 
         Args:
-            script (Union[UTxO, PlutusV1Script, PlutusV2Script]): A plutus script.
+            script (Union[UTxO, PlutusV1Script, PlutusV2Script, PlutusV3Script]): A plutus script.
             redeemer (Optional[Redeemer]): A plutus redeemer to unlock the UTxO.
 
         Returns:
@@ -473,16 +489,32 @@ class TransactionBuilder:
         return self._datums
 
     @property
-    def redeemers(self) -> List[Redeemer]:
+    def _redeemer_list(self) -> List[Redeemer]:
         return (
             [r for r in self._inputs_to_redeemers.values() if r is not None]
             + [r for _, r in self._minting_script_to_redeemers if r is not None]
             + [r for _, r in self._withdrawal_script_to_redeemers if r is not None]
         )
 
+    def redeemers(self) -> RedeemerMap:
+        redeemers = RedeemerMap()
+        for r in self._redeemer_list:
+            if r.tag is None:
+                raise InvalidArgumentException(
+                    f"Redeemer tag is not set. Redeemer: {r}"
+                )
+            if r.ex_units is None:
+                raise InvalidArgumentException(
+                    f"Execution units are not set. Redeemer: {r}"
+                )
+            k = RedeemerKey(r.tag, r.index)
+            v = RedeemerValue(r.data, r.ex_units)
+            redeemers[k] = v
+        return redeemers
+
     @property
     def script_data_hash(self) -> Optional[ScriptDataHash]:
-        if self.datums or self.redeemers:
+        if self.datums or self._redeemer_list:
             cost_models = {}
             for s in self.all_scripts:
                 if isinstance(s, PlutusV1Script) or type(s) is bytes:
@@ -495,8 +527,12 @@ class TransactionBuilder:
                         self.context.protocol_param.cost_models.get("PlutusV2")
                         or PLUTUS_V2_COST_MODEL
                     )
+                if isinstance(s, PlutusV3Script):
+                    cost_models[2] = self.context.protocol_param.cost_models.get(
+                        "PlutusV3", {}
+                    )
             return script_data_hash(
-                self.redeemers, list(self.datums.values()), CostModels(cost_models)
+                self.redeemers(), list(self.datums.values()), CostModels(cost_models)
             )
         else:
             return None
@@ -862,7 +898,7 @@ class TransactionBuilder:
                     script_staking_credential.to_primitive()
                 )
 
-        self.redeemers.sort(key=lambda r: r.index)
+        self._redeemer_list.sort(key=lambda r: r.index)
 
     def _build_tx_body(self) -> TransactionBody:
         tx_body = TransactionBody(
@@ -875,7 +911,7 @@ class TransactionBuilder:
                 self.auxiliary_data.hash() if self.auxiliary_data else None
             ),
             script_data_hash=self.script_data_hash,
-            required_signers=self.required_signers,
+            required_signers=self.required_signers if self.required_signers else None,
             validity_start=self.validity_start,
             collateral=(
                 [c.input for c in self.collaterals] if self.collaterals else None
@@ -930,9 +966,16 @@ class TransactionBuilder:
             )
         return tx
 
-    def build_witness_set(self) -> TransactionWitnessSet:
+    def build_witness_set(
+        self, remove_dup_script: bool = False, post_chang: bool = True
+    ) -> TransactionWitnessSet:
         """Build a transaction witness set, excluding verification key witnesses.
         This function is especially useful when the transaction involves Plutus scripts.
+
+        Args:
+            remove_dup_script (bool): Whether to remove scripts, that are already attached to inputs,
+             from the witness set.
+            post_chang (bool): Whether to use chang serialization for the witness.
 
         Returns:
             TransactionWitnessSet: A transaction witness set without verification key witnesses.
@@ -941,26 +984,48 @@ class TransactionBuilder:
         native_scripts: List[NativeScript] = []
         plutus_v1_scripts: List[PlutusV1Script] = []
         plutus_v2_scripts: List[PlutusV2Script] = []
+        plutus_v3_scripts: List[PlutusV3Script] = []
+
+        input_scripts = (
+            {
+                script_hash(i.output.script)
+                for i in self.inputs
+                if i.output.script is not None
+            }
+            if remove_dup_script
+            else {}
+        )
 
         for script in self.scripts:
-            if isinstance(script, NativeScript):
-                native_scripts.append(script)
-            elif isinstance(script, PlutusV1Script):
-                plutus_v1_scripts.append(script)
-            elif type(script) is bytes:
-                plutus_v1_scripts.append(PlutusV1Script(script))
-            elif isinstance(script, PlutusV2Script):
-                plutus_v2_scripts.append(script)
+            if script_hash(script) not in input_scripts:
+                if isinstance(script, NativeScript):
+                    native_scripts.append(script)
+                elif isinstance(script, PlutusV1Script):
+                    plutus_v1_scripts.append(script)
+                elif type(script) is bytes:
+                    plutus_v1_scripts.append(PlutusV1Script(script))
+                elif isinstance(script, PlutusV2Script):
+                    plutus_v2_scripts.append(script)
+                elif isinstance(script, PlutusV3Script):
+                    plutus_v3_scripts.append(script)
+                else:
+                    raise InvalidArgumentException(
+                        f"Unsupported script type: {type(script)}"
+                    )
+
+        redeemers: Optional[Redeemers] = None
+        if self._redeemer_list:
+            if not post_chang:
+                redeemers = self._redeemer_list
             else:
-                raise InvalidArgumentException(
-                    f"Unsupported script type: {type(script)}"
-                )
+                redeemers = self.redeemers()
 
         return TransactionWitnessSet(
             native_scripts=native_scripts if native_scripts else None,
             plutus_v1_script=plutus_v1_scripts if plutus_v1_scripts else None,
             plutus_v2_script=plutus_v2_scripts if plutus_v2_scripts else None,
-            redeemer=self.redeemers if self.redeemers else None,
+            plutus_v3_script=plutus_v3_scripts if plutus_v3_scripts else None,
+            redeemer=redeemers,
             plutus_data=list(self.datums.values()) if self.datums else None,
         )
 
@@ -974,14 +1039,22 @@ class TransactionBuilder:
 
     def _estimate_fee(self):
         plutus_execution_units = ExecutionUnits(0, 0)
-        for redeemer in self.redeemers:
+        for redeemer in self._redeemer_list:
             plutus_execution_units += redeemer.ex_units
+
+        ref_script_size = 0
+        for s in self._reference_scripts:
+            if isinstance(s, NativeScript):
+                ref_script_size += len(s.to_cbor())
+            else:
+                ref_script_size += len(s)
 
         estimated_fee = fee(
             self.context,
             len(self._build_full_fake_tx().to_cbor()),
             plutus_execution_units.steps,
             plutus_execution_units.mem,
+            ref_script_size,
         )
         if self.fee_buffer is not None:
             estimated_fee += self.fee_buffer
@@ -1228,6 +1301,7 @@ class TransactionBuilder:
         if (
             not witnesses.plutus_v1_script
             and not witnesses.plutus_v2_script
+            and not witnesses.plutus_v3_script
             and not self._reference_scripts
         ):
             return
@@ -1313,7 +1387,7 @@ class TransactionBuilder:
             estimated_execution_units = self._estimate_execution_units(
                 change_address, merge_change, collateral_change_address
             )
-            for r in self.redeemers:
+            for r in self._redeemer_list:
                 assert (
                     r.tag is not None
                 ), "Expected tag of redeemer to be set, but found None"
@@ -1406,7 +1480,7 @@ class TransactionBuilder:
             auto_ttl_offset=auto_ttl_offset,
             auto_required_signers=auto_required_signers,
         )
-        witness_set = self.build_witness_set()
+        witness_set = self.build_witness_set(True)
         witness_set.vkey_witnesses = []
 
         for signing_key in set(signing_keys):

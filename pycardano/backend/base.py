@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from pycardano.address import Address
 from pycardano.exception import InvalidArgumentException
@@ -105,11 +105,13 @@ class ProtocolParameters:
 
     coins_per_utxo_byte: int
 
-    min_ref_script_cost_per_byte: int
-
     cost_models: Dict[str, Dict[str, int]]
     """A dict contains cost models for Plutus. The key will be "PlutusV1", "PlutusV2", etc.
     The value will be a dict of cost model parameters."""
+
+    maximum_reference_scripts_size: Optional[Dict[str, int]] = None
+
+    min_fee_reference_scripts: Optional[Dict[str, float]] = None
 
 
 @typechecked
