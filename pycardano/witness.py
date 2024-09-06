@@ -77,7 +77,7 @@ class TransactionWitnessSet(MapCBORSerializable):
         metadata={"optional": True, "key": 4, "object_hook": list_hook(RawPlutusData)},
     )
 
-    redeemer: Optional[List[Redeemer]] = field(
+    redeemer: Optional[Redeemers] = field(
         default=None,
         metadata={"optional": True, "key": 5, "object_hook": list_hook(Redeemer)},
     )
