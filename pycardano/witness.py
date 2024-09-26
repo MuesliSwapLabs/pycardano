@@ -91,7 +91,7 @@ class TransactionWitnessSet(MapCBORSerializable):
     )
 
     @classmethod
-    @limit_primitive_type(dict, list)
+    @limit_primitive_type(dict, list, tuple)
     def from_primitive(
         cls: Type[TransactionWitnessSet], values: Union[dict, list, tuple]
     ) -> TransactionWitnessSet | None:
@@ -116,11 +116,17 @@ class TransactionWitnessSet(MapCBORSerializable):
             return [PlutusV2Script(script) for script in data] if data else None
 
         def _get_redeemers(data: Any):
-            return (
-                [Redeemer.from_primitive(redeemer) for redeemer in data]
-                if data
-                else None
-            )
+            if isinstance(data, dict):
+                return [
+                    Redeemer.from_primitive([k[0], k[1], v[0], v[1]])
+                    for (k, v) in data.items()
+                ]
+            else:
+                return (
+                    [Redeemer.from_primitive(redeemer) for redeemer in data]
+                    if data
+                    else None
+                )
 
         def _get_cls(data: Any):
             return cls(
