@@ -53,6 +53,7 @@ class KupoChainContextExtension(ChainContext):
         refetch_chain_tip_interval: int = 10,
         utxo_cache_size: int = 1000,
         datum_cache_size: int = 1000,
+        additional_headers: dict = {},
     ):
         self._kupo_url = kupo_url
         self._wrapped_backend = wrapped_backend
@@ -61,6 +62,7 @@ class KupoChainContextExtension(ChainContext):
             ttl=self._refetch_chain_tip_interval, maxsize=utxo_cache_size
         )
         self._datum_cache = LRUCache(maxsize=datum_cache_size)
+        self._additional_headers = additional_headers
 
     @property
     def genesis_param(self) -> GenesisParameters:
@@ -130,7 +132,7 @@ class KupoChainContextExtension(ChainContext):
             )
 
         kupo_datum_url = self._kupo_url + "/datums/" + datum_hash
-        datum_result = requests.get(kupo_datum_url).json()
+        datum_result = requests.get(kupo_datum_url, headers=self._additional_headers).json()
         if datum_result and datum_result["datum"] != datum_hash:
             datum = RawCBOR(bytes.fromhex(datum_result["datum"]))
 
@@ -154,7 +156,7 @@ class KupoChainContextExtension(ChainContext):
             )
 
         kupo_utxo_url = self._kupo_url + "/matches/" + address + "?unspent"
-        results = requests.get(kupo_utxo_url).json()
+        results = requests.get(kupo_utxo_url, headers=self._additional_headers).json()
 
         utxos = []
 
@@ -171,7 +173,7 @@ class KupoChainContextExtension(ChainContext):
                 script_hash = result.get("script_hash", None)
                 if script_hash:
                     kupo_script_url = self._kupo_url + "/scripts/" + script_hash
-                    script = requests.get(kupo_script_url).json()
+                    script = requests.get(kupo_script_url, headers=self._additional_headers).json()
                     ver = int(script["language"].removeprefix("plutus:v"))
                     if 1 <= ver <= 3:
                         script = PlutusScript.from_version(

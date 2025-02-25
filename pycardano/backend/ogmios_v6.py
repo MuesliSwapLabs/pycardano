@@ -443,6 +443,7 @@ def KupoOgmiosV6ChainContext(
     datum_cache_size: int = 10000,
     network: Network = Network.TESTNET,
     kupo_url: Optional[str] = None,
+    additional_headers: dict = {},
 ) -> KupoChainContextExtension:
     return KupoChainContextExtension(
         OgmiosV6ChainContext(
@@ -454,6 +455,8 @@ def KupoOgmiosV6ChainContext(
             utxo_cache_size,
             datum_cache_size,
             network,
+            additional_headers,
         ),
         kupo_url,
+        additional_headers=additional_headers,
     )
