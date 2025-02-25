@@ -97,11 +97,12 @@ def fee(
     )
 
 
-def max_tx_fee(context: ChainContext) -> int:
+def max_tx_fee(context: ChainContext, ref_script_size: int = 0) -> int:
     """Calculate the maximum possible transaction fee based on protocol parameters.
 
     Args:
         context (ChainContext): A chain context.
+        ref_script_size (int): Size of reference scripts in the transaction.
 
     Returns:
         int: Maximum possible tx fee in lovelace.
@@ -111,6 +112,7 @@ def max_tx_fee(context: ChainContext) -> int:
         context.protocol_param.max_tx_size,
         context.protocol_param.max_tx_ex_steps,
         context.protocol_param.max_tx_ex_mem,
+        ref_script_size,
     )
 
 
@@ -184,7 +186,7 @@ def min_lovelace_pre_alonzo(
         int: Minimum required lovelace amount for this transaction output.
     """
     if amount is None or isinstance(amount, int) or not amount.multi_asset:
-        return context.protocol_param.min_utxo
+        return context.protocol_param.min_utxo or 1_000_000
 
     b_size = bundle_size(amount.multi_asset)
     utxo_entry_size = 27

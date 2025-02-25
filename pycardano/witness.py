@@ -12,12 +12,12 @@ from pycardano.plutus import (
     PlutusV2Script,
     PlutusV3Script,
     RawPlutusData,
-    Redeemer,
     Redeemers,
 )
 from pycardano.serialization import (
     ArrayCBORSerializable,
     MapCBORSerializable,
+    NonEmptyOrderedSet,
     limit_primitive_type,
     list_hook,
 )
@@ -49,18 +49,24 @@ class VerificationKeyWitness(ArrayCBORSerializable):
 
 @dataclass(repr=False)
 class TransactionWitnessSet(MapCBORSerializable):
-    vkey_witnesses: Optional[List[VerificationKeyWitness]] = field(
+    vkey_witnesses: Optional[
+        Union[List[VerificationKeyWitness], NonEmptyOrderedSet[VerificationKeyWitness]]
+    ] = field(
         default=None,
         metadata={
-            "optional": True,
             "key": 0,
-            "object_hook": list_hook(VerificationKeyWitness),
+            "optional": True,
         },
     )
 
-    native_scripts: Optional[List[NativeScript]] = field(
+    native_scripts: Optional[
+        Union[List[NativeScript], NonEmptyOrderedSet[NativeScript]]
+    ] = field(
         default=None,
-        metadata={"optional": True, "key": 1, "object_hook": list_hook(NativeScript)},
+        metadata={
+            "key": 1,
+            "optional": True,
+        },
     )
 
     # TODO: Add bootstrap witness (byron) support
@@ -68,8 +74,14 @@ class TransactionWitnessSet(MapCBORSerializable):
         default=None, metadata={"optional": True, "key": 2}
     )
 
-    plutus_v1_script: Optional[List[PlutusV1Script]] = field(
-        default=None, metadata={"optional": True, "key": 3}
+    plutus_v1_script: Optional[
+        Union[List[PlutusV1Script], NonEmptyOrderedSet[PlutusV1Script]]
+    ] = field(
+        default=None,
+        metadata={
+            "key": 3,
+            "optional": True,
+        },
     )
 
     plutus_data: Optional[List[Any]] = field(
@@ -79,70 +91,38 @@ class TransactionWitnessSet(MapCBORSerializable):
 
     redeemer: Optional[Redeemers] = field(
         default=None,
-        metadata={"optional": True, "key": 5, "object_hook": list_hook(Redeemer)},
+        metadata={"optional": True, "key": 5},
     )
 
-    plutus_v2_script: Optional[List[PlutusV2Script]] = field(
-        default=None, metadata={"optional": True, "key": 6}
+    plutus_v2_script: Optional[
+        Union[List[PlutusV2Script], NonEmptyOrderedSet[PlutusV2Script]]
+    ] = field(
+        default=None,
+        metadata={
+            "key": 6,
+            "optional": True,
+        },
     )
 
-    plutus_v3_script: Optional[List[PlutusV3Script]] = field(
-        default=None, metadata={"optional": True, "key": 7}
+    plutus_v3_script: Optional[
+        Union[List[PlutusV3Script], NonEmptyOrderedSet[PlutusV3Script]]
+    ] = field(
+        default=None,
+        metadata={
+            "key": 7,
+            "optional": True,
+        },
     )
 
-    @classmethod
-    @limit_primitive_type(dict, list, tuple)
-    def from_primitive(
-        cls: Type[TransactionWitnessSet], values: Union[dict, list, tuple]
-    ) -> TransactionWitnessSet | None:
-        def _get_vkey_witnesses(data: Any):
-            return (
-                [VerificationKeyWitness.from_primitive(witness) for witness in data]
-                if data
-                else None
-            )
-
-        def _get_native_scripts(data: Any):
-            return (
-                [NativeScript.from_primitive(script) for script in data]
-                if data
-                else None
-            )
-
-        def _get_plutus_v1_scripts(data: Any):
-            return [PlutusV1Script(script) for script in data] if data else None
-
-        def _get_plutus_v2_scripts(data: Any):
-            return [PlutusV2Script(script) for script in data] if data else None
-
-        def _get_redeemers(data: Any):
-            if isinstance(data, dict):
-                return [
-                    Redeemer.from_primitive([k[0], k[1], v[0], v[1]])
-                    for (k, v) in data.items()
-                ]
-            else:
-                return (
-                    [Redeemer.from_primitive(redeemer) for redeemer in data]
-                    if data
-                    else None
-                )
-
-        def _get_cls(data: Any):
-            return cls(
-                vkey_witnesses=_get_vkey_witnesses(data.get(0)),
-                native_scripts=_get_native_scripts(data.get(1)),
-                bootstrap_witness=data.get(2),
-                plutus_v1_script=_get_plutus_v1_scripts(data.get(3)),
-                plutus_data=data.get(4),
-                redeemer=_get_redeemers(data.get(5)),
-                plutus_v2_script=_get_plutus_v2_scripts(data.get(6)),
-            )
-
-        if isinstance(values, dict):
-            return _get_cls(values)
-        elif isinstance(values, list):
-            # TODO: May need to handle this differently
-            values = dict(values)
-            return _get_cls(values)
-        return None
+    def __post_init__(self):
+        # Convert lists to NonEmptyOrderedSet for fields that should use NonEmptyOrderedSet
+        if isinstance(self.vkey_witnesses, list):
+            self.vkey_witnesses = NonEmptyOrderedSet(self.vkey_witnesses)
+        if isinstance(self.native_scripts, list):
+            self.native_scripts = NonEmptyOrderedSet(self.native_scripts)
+        if isinstance(self.plutus_v1_script, list):
+            self.plutus_v1_script = NonEmptyOrderedSet(self.plutus_v1_script)
+        if isinstance(self.plutus_v2_script, list):
+            self.plutus_v2_script = NonEmptyOrderedSet(self.plutus_v2_script)
+        if isinstance(self.plutus_v3_script, list):
+            self.plutus_v3_script = NonEmptyOrderedSet(self.plutus_v3_script)
