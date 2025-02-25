@@ -436,17 +436,18 @@ class OgmiosChainContext(OgmiosV6ChainContext):
 def KupoOgmiosV6ChainContext(
     host: str,
     port: int,
-    path: str,
-    secure: bool,
+    path: str = "",
+    secure: bool = False,
     refetch_chain_tip_interval: Optional[float] = None,
     utxo_cache_size: int = 10000,
     datum_cache_size: int = 10000,
     network: Network = Network.TESTNET,
     kupo_url: Optional[str] = None,
     additional_headers: dict = {},
+    kupo_additional_headers: dict = {},
 ) -> KupoChainContextExtension:
     return KupoChainContextExtension(
-        OgmiosV6ChainContext(
+        wrapped_backend=OgmiosV6ChainContext(
             host,
             port,
             path,
@@ -457,6 +458,6 @@ def KupoOgmiosV6ChainContext(
             network,
             additional_headers,
         ),
-        kupo_url,
-        additional_headers=additional_headers,
+        kupo_url=kupo_url,
+        additional_headers=kupo_additional_headers,
     )

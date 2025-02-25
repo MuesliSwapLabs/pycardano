@@ -132,7 +132,9 @@ class KupoChainContextExtension(ChainContext):
             )
 
         kupo_datum_url = self._kupo_url + "/datums/" + datum_hash
-        datum_result = requests.get(kupo_datum_url, headers=self._additional_headers).json()
+        datum_result = requests.get(
+            kupo_datum_url, headers=self._additional_headers
+        ).json()
         if datum_result and datum_result["datum"] != datum_hash:
             datum = RawCBOR(bytes.fromhex(datum_result["datum"]))
 
@@ -173,7 +175,9 @@ class KupoChainContextExtension(ChainContext):
                 script_hash = result.get("script_hash", None)
                 if script_hash:
                     kupo_script_url = self._kupo_url + "/scripts/" + script_hash
-                    script = requests.get(kupo_script_url, headers=self._additional_headers).json()
+                    script = requests.get(
+                        kupo_script_url, headers=self._additional_headers
+                    ).json()
                     ver = int(script["language"].removeprefix("plutus:v"))
                     if 1 <= ver <= 3:
                         script = PlutusScript.from_version(
