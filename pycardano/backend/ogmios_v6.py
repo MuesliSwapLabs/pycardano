@@ -376,7 +376,7 @@ class OgmiosV6ChainContext(ChainContext):
             self.secure,
             additional_headers=self.additional_headers,
         ) as client:
-            client.submit_transaction.execute(cbor)
+            return client.submit_transaction.execute(cbor)[0]
 
     def evaluate_tx_cbor(self, cbor: Union[bytes, str]) -> Dict[str, ExecutionUnits]:
         if isinstance(cbor, bytes):

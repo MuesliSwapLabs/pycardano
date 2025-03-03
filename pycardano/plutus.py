@@ -1071,6 +1071,7 @@ class PlutusScript(bytes):
 
     @classmethod
     def from_version(cls, version: int, script_data: bytes) -> "PlutusScript":
+        version = int(version)
         if version == 1:
             return PlutusV1Script(script_data)
         elif version == 2:
